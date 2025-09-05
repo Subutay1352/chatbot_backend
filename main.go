@@ -49,7 +49,7 @@ func initDB() *gorm.DB {
 	dbPassword := getEnv("DB_PASSWORD", "password")
 	dbName := getEnv("DB_NAME", "chatbot")
 
-	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=require",
 		dbHost, dbPort, dbUser, dbPassword, dbName)
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})

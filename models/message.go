@@ -17,7 +17,6 @@ type Message struct {
 	OriginalMessageID string     `json:"originalMessageId,omitempty"`
 	SessionID         string     `json:"sessionId"`
 	Reactions         []Reaction `json:"reactions" gorm:"foreignKey:MessageID"`
-	Metadata          Metadata   `json:"metadata" gorm:"embedded"`
 }
 
 // Reaction represents a message reaction
@@ -27,20 +26,4 @@ type Reaction struct {
 	Count     int    `json:"count"`
 	Users     string `json:"users"` // JSON array as string
 	MessageID string `json:"messageId"`
-}
-
-// Metadata contains additional message information
-type Metadata struct {
-	Language    string      `json:"language,omitempty"`
-	CodeBlock   bool        `json:"codeBlock,omitempty"`
-	LinkPreview LinkPreview `json:"linkPreview,omitempty" gorm:"embedded"`
-}
-
-// LinkPreview contains link preview information
-type LinkPreview struct {
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Image       string `json:"image,omitempty"`
-	URL         string `json:"url"`
-	Domain      string `json:"domain"`
 }

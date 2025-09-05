@@ -52,7 +52,7 @@ func SendMessage(db *gorm.DB, aiService services.AIService) gin.HandlerFunc {
 		// Create or get session
 		var session models.Session
 		if req.SessionID != "" {
-			if err := db.Preload("Mode").First(&session, "id = ?", req.SessionID).Error; err != nil {
+			if err := db.First(&session, "id = ?", req.SessionID).Error; err != nil {
 				c.JSON(http.StatusNotFound, ErrorResponse{
 					Error:   "Session not found",
 					Message: "The specified session does not exist",
@@ -101,25 +101,31 @@ func SendMessage(db *gorm.DB, aiService services.AIService) gin.HandlerFunc {
 
 		// Get AI response
 		aiResponse, err := aiService.SendMessage(req.Message)
+		var botMessage models.Message
+
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Error:   "AI Service error",
-				Message: "Failed to get AI response",
-				Code:    http.StatusInternalServerError,
-			})
-			return
+			// AI service hatası olsa bile bot mesajı oluştur
+			botMessage = models.Message{
+				ID:          uuid.New().String(),
+				Content:     "Üzgünüm, şu anda yanıt veremiyorum. Lütfen daha sonra tekrar deneyin.",
+				Sender:      "bot",
+				Timestamp:   time.Now(),
+				MessageType: "text",
+				SessionID:   session.ID,
+			}
+		} else {
+			// Normal AI response
+			botMessage = models.Message{
+				ID:          uuid.New().String(),
+				Content:     aiResponse,
+				Sender:      "bot",
+				Timestamp:   time.Now(),
+				MessageType: "text",
+				SessionID:   session.ID,
+			}
 		}
 
-		// Create bot message
-		botMessage := models.Message{
-			ID:          uuid.New().String(),
-			Content:     aiResponse,
-			Sender:      "bot",
-			Timestamp:   time.Now(),
-			MessageType: "text",
-			SessionID:   session.ID,
-		}
-
+		// Bot mesajını kaydet
 		if err := db.Create(&botMessage).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, ErrorResponse{
 				Error:   "Database error",

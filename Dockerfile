@@ -31,19 +31,11 @@ WORKDIR /root/
 # Copy the binary from builder stage
 COPY --from=builder /app/main .
 
-# Copy environment file template
-COPY --from=builder /app/.env.example .
-
-# Create data directory for database
-RUN mkdir -p /data
+# Copy environment file
+COPY --from=builder /app/.env .
 
 # Expose port
 EXPOSE 8080
-
-# Set environment variables
-ENV PORT=8080
-ENV DB_PATH=/data/chatbot.db
-ENV ENVIRONMENT=production
 
 # Run the application
 CMD ["./main"]
