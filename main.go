@@ -4,7 +4,6 @@ import (
 	"chatbot_backend/config"
 	"chatbot_backend/handlers"
 	"chatbot_backend/middleware"
-	"chatbot_backend/models"
 	"chatbot_backend/services"
 	"fmt"
 	"log"
@@ -58,10 +57,8 @@ func initDB() *gorm.DB {
 		log.Fatal("Failed to connect to database:", err)
 	}
 
-	// Auto migrate the schema
-	if err := db.AutoMigrate(&models.Session{}, &models.Message{}, &models.Reaction{}); err != nil {
-		log.Fatal("Failed to migrate database:", err)
-	}
+	// Check and create tables if they don't exist
+	createTablesIfNotExist(db)
 
 	log.Println("Database initialized successfully")
 	return db
@@ -134,6 +131,96 @@ func setupRoutes(r *gin.Engine, db *gorm.DB, aiService services.AIService) {
 			"sessionId": c.Param("sessionId"),
 		})
 	})
+}
+
+// createTablesIfNotExist creates tables if they don't exist
+func createTablesIfNotExist(db *gorm.DB) {
+	// Check if sessions table exists
+	if !db.Migrator().HasTable("sessions") {
+		log.Println("Creating sessions table...")
+		if err := db.Exec(`
+			CREATE TABLE sessions (
+				id VARCHAR(255) PRIMARY KEY,
+				title VARCHAR(255) NOT NULL,
+				created_at TIMESTAMP NOT NULL,
+				updated_at TIMESTAMP NOT NULL,
+				is_favorite BOOLEAN DEFAULT FALSE
+			)
+		`).Error; err != nil {
+			log.Fatal("Failed to create sessions table:", err)
+		}
+		log.Println("Sessions table created successfully")
+	}
+
+	// Check if messages table exists
+	if !db.Migrator().HasTable("messages") {
+		log.Println("Creating messages table...")
+		if err := db.Exec(`
+			CREATE TABLE messages (
+				id VARCHAR(255) PRIMARY KEY,
+				content TEXT NOT NULL,
+				sender VARCHAR(50) NOT NULL CHECK (sender IN ('user', 'bot')),
+				timestamp TIMESTAMP NOT NULL,
+				message_type VARCHAR(50) DEFAULT 'text',
+				is_typing BOOLEAN DEFAULT FALSE,
+				is_favorite BOOLEAN DEFAULT FALSE,
+				is_regenerated BOOLEAN DEFAULT FALSE,
+				original_message_id VARCHAR(255),
+				session_id VARCHAR(255) NOT NULL,
+				language VARCHAR(10),
+				code_block BOOLEAN DEFAULT FALSE,
+				link_title VARCHAR(255),
+				link_description TEXT,
+				link_image VARCHAR(500),
+				link_url VARCHAR(500),
+				link_domain VARCHAR(255),
+				FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+			)
+		`).Error; err != nil {
+			log.Fatal("Failed to create messages table:", err)
+		}
+		log.Println("Messages table created successfully")
+	}
+
+	// Check if reactions table exists
+	if !db.Migrator().HasTable("reactions") {
+		log.Println("Creating reactions table...")
+		if err := db.Exec(`
+			CREATE TABLE reactions (
+				id VARCHAR(255) PRIMARY KEY,
+				emoji VARCHAR(10) NOT NULL,
+				count INTEGER DEFAULT 0,
+				users TEXT,
+				message_id VARCHAR(255) NOT NULL,
+				FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE
+			)
+		`).Error; err != nil {
+			log.Fatal("Failed to create reactions table:", err)
+		}
+		log.Println("Reactions table created successfully")
+	}
+
+	// Create indexes if they don't exist
+	createIndexesIfNotExist(db)
+}
+
+// createIndexesIfNotExist creates indexes for better performance
+func createIndexesIfNotExist(db *gorm.DB) {
+	indexes := []string{
+		"CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id)",
+		"CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp)",
+		"CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender)",
+		"CREATE INDEX IF NOT EXISTS idx_sessions_updated_at ON sessions(updated_at)",
+		"CREATE INDEX IF NOT EXISTS idx_sessions_is_favorite ON sessions(is_favorite)",
+		"CREATE INDEX IF NOT EXISTS idx_reactions_message_id ON reactions(message_id)",
+	}
+
+	for _, indexSQL := range indexes {
+		if err := db.Exec(indexSQL).Error; err != nil {
+			log.Printf("Warning: Failed to create index: %v", err)
+		}
+	}
+	log.Println("Database indexes created/verified")
 }
 
 // getEnv gets an environment variable with a default value
